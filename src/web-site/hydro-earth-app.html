@@ -1,0 +1,377 @@
+<head>
+    <title>Hydro Model Builder</title>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    
+    <style>
+        html, body, #map-canvas {
+          height: 100%;
+          margin: 0;
+          padding: 0
+        }
+
+        .task-status { font-family: Arial; font-size: 10px; color: white }
+
+        #showModels {
+          cursor: pointer;
+          margin-left: 33px;
+        }
+    </style>
+
+    <link rel="stylesheet" type="text/css" href="jquery-ui.css" />
+    <script type="text/javascript" src="/jquery.floatingmessage.js"></script>
+    <script type="text/javascript" src="https://maps.google.com/maps/api/js?sensor=false&amp;v=3"></script>
+
+    <!-- Import the visualization javascript -->
+    <script type="text/javascript" src="http://www.google.com/jsapi"></script>
+
+    <!-- Initialize visualization -->
+    <script type="text/javascript">
+      google.load('visualization', '1', {});
+    </script>
+</head>
+
+<body>
+<div id="map-canvas"></div>
+
+<script>
+   // TODO: move all this crappy JavaScript code into .js
+
+    var markers = [];
+    var selection = null;
+    var scale = 0.1
+
+    function UpdateScaleMeters(elem) {
+       scale = +($('#inputScale').val());
+       var newScale = Math.round(scale * 111319);
+
+       if(scale == 0.0008) {
+          scale = 0.0008333333535119891;
+          $('#inputScaleMeters').text(90);
+       } else {
+          $('#inputScaleMeters').text(newScale);
+       }
+    }
+
+    function exportModel(basinId) {
+       Session.set('basinId', basinId);
+       Session.set('scale', scale);
+
+       var message = '<i class="fa fa-refresh fa-spin"></i> Model input for basin ' + basinId + ': RUNNING ...';
+ 
+       // check if we already have element for this basinId
+       var div = document.getElementById("task-status-" + basinId);
+
+       if(div) {
+           div.innerHTML = message;
+       } else {
+         $('<div class="task-status" id="task-status-' + basinId + '">' + message + '</div>')
+           .floatingMessage({ padding : 2, margin: 1, width: 250, height : 20, position : "top-right" });
+       }
+
+/*
+<button class="icon-task-status" />
+       $( ".icon-task-status" ).button({
+          icons: { primary: "ui-icon-gear", secondary: "ui-icon-triangle-1-s" }
+       });
+*/
+    }
+
+    function addControls(map) {
+      var showModels = document.createElement('div');
+      showModels.id = 'showModels';
+      showModels.innerHTML = 
+      '<button data-toggle="tooltip" title="Show models" type="button" class="btn btn-default btn-xs" aria-label="Models">' + 
+        '<span class="glyphicon glyphicon-th-list" aria-hidden="true"></span>' +
+      '</button>';
+
+      showModels.addEventListener('click', function() {
+        console.log('show/hide models');
+         $('<div class="task-status" id="task-status">... show list of models ...</div>')
+           .floatingMessage({ padding : 2, margin: 2, width: 250, height: 20, position : "top-right" });
+
+        //<span class="glyphicon glyphicon-refresh"></span>
+
+/*
+        var $icon = $( this ).find( ".glyphicon-refresh" ),
+            animateClass = "icon-refresh-animate";
+
+        $icon.addClass( animateClass );
+
+
+        // setTimeout is to indicate some async operation
+        window.setTimeout( function() {
+        	$icon.removeClass( animateClass );
+        }, 2000 );
+*/   
+      });
+
+      showModels.index = 1;
+      map.controls[google.maps.ControlPosition.LEFT_TOP].push(showModels);
+
+    }
+
+    function initialize() {
+        google.maps.visualRefresh = true;
+        var mapDiv = document.getElementById('map-canvas');
+
+        var map = new google.maps.Map(mapDiv, {
+            center: new google.maps.LatLng(25, 0),
+            zoom: 3,
+            scaleControl: true,
+            streetViewControl: false,
+            mapTypeId: google.maps.MapTypeId.SATELLITE
+        });
+
+
+        /* TODO: convert to layer, check license / host own
+         var map = new google.maps.Map(mapDiv, {
+              center: new google.maps.LatLng(57, 21),
+              zoom: 3,
+              mapTypeId: "OSM",
+              mapTypeControl: false,
+              streetViewControl: false
+         });
+
+         //Define OSM map type pointing at the OpenStreetMap tile server
+         map.mapTypes.set("OSM", new google.maps.ImageMapType({
+             getTileUrl: function(coord, zoom) {
+                 return "http://tile.openstreetmap.org/" + zoom + "/" + coord.x + "/" + coord.y + ".png";
+             },
+             tileSize: new google.maps.Size(256, 256),
+             name: "OpenStreetMap",
+             maxZoom: 18
+         }));
+        */
+
+
+        addControls(map);
+
+        var basinsLayer = new google.maps.FusionTablesLayer({
+            map: map,
+            suppressInfoWindows: true,
+            heatmap: {enabled: false},
+            query: { select: "col15", from: "13dShZ5yGqCEqk3dsJvYEL3lsa1hEmpMRldxK7aSa" },
+            options: { styleId: 5, templateId: 5 }
+        });
+
+        var basinsOutlineLayer = new google.maps.FusionTablesLayer({
+            map: map,
+            suppressInfoWindows: true,
+            heatmap: {enabled: false},
+            query: {}
+        });
+
+        var riversLayer = new google.maps.FusionTablesLayer({
+            map: null,
+            suppressInfoWindows: true,
+            heatmap: { enabled: false },
+            query: {
+                select: "col4",
+                from: "15-WpLuijWukjWsjUral2RFZXx0IR7j2lLTAi8lR9",
+                where: ""
+            },
+            options: {
+                styleId: 2,
+                templateId: 2
+            }
+        });
+
+        var riversLayerLarge = new google.maps.FusionTablesLayer({
+            map: map,
+            heatmap: { enabled: false },
+            query: {
+                select: "col6",
+                from: "1H-x7VEzYLA6UBaKNxTT_iIO1N_PJwuucZvwbNw",
+                where: ""
+            },
+            options: {
+                styleId: 2,
+                templateId: 2
+            }
+        });
+
+        function onZoomChanged() {
+                var zoomLevel = map.getZoom();
+
+                if (zoomLevel <= 1) {
+                    basinsLayer.setOptions({query: {}});
+                    basinsOutlineLayer.setOptions({query: {}});
+                } else if (zoomLevel > 1 && zoomLevel < 5) {
+                    selectedBasinLevel = 3
+                    tableIdBasins = '13dShZ5yGqCEqk3dsJvYEL3lsa1hEmpMRldxK7aSa';
+                    basinsLayer.setOptions({
+                        query: { select: "col15", from: tableIdBasins },
+                        options: { styleId: 5, templateId: 5 }
+                    }); // level 3
+                    basinsOutlineLayer.setOptions({query: {}});
+                } else if (zoomLevel >= 5 && zoomLevel < 7) {
+                    selectedBasinLevel = 4
+                    tableIdBasins = '1FxGTqGlr_XTSOL8r1zp-PIOCO3S3_6i2gI-KQeQZ';
+                    basinsLayer.setOptions({
+                        query: { select: "col15",from: tableIdBasins },
+                        options: { styleId: 2, templateId: 2 }
+                    }); // level 4
+                    basinsOutlineLayer.setOptions({
+                        query: { select: "col15", from: "13dShZ5yGqCEqk3dsJvYEL3lsa1hEmpMRldxK7aSa" },
+                        options: { styleId: 4, templateId: 4 }
+                    });
+                } else if (zoomLevel >= 7) {
+                    selectedBasinLevel = 5
+                    tableIdBasins = '1IHRHUiWkgPXOzwNweeM89CzPYSfokjLlz7_0OTQl'
+                    basinsLayer.setOptions({
+                        query: { select: "col15", from: tableIdBasins },
+                        options: { styleId: 2, templateId: 2 }
+                    }); // level 5
+                    basinsOutlineLayer.setOptions({
+                        query: { select: "col15", from: "1FxGTqGlr_XTSOL8r1zp-PIOCO3S3_6i2gI-KQeQZ" },
+                        options: { styleId: 3, templateId: 3 }
+                    });
+                }
+
+                if(zoomLevel >= 6) {
+                    riversLayerLarge.setMap(map);
+                    riversLayer.setMap(map);
+                } else if(zoomLevel <= 1) {
+                    riversLayerLarge.setMap(null);
+                    riversLayer.setMap(null);
+                } else {
+                    riversLayerLarge.setMap(map);
+                    riversLayer.setMap(null);
+                }
+
+                if(selection) {
+                    selection.setOptions(selectionOptions)
+                }
+
+               // bugs in fusion table
+               setTimeout(function(){ 
+                  $("img[src*='googleapis']").each(function(){ 
+                  $(this).attr("src",$(this).attr("src")+"&"+(new Date()).getTime()); 
+                 }); 
+               },3000); 
+
+            }
+
+        var tableIdBasins = '13dShZ5yGqCEqk3dsJvYEL3lsa1hEmpMRldxK7aSa';
+
+        var selectionLat = null;
+        var selectionLng = null;
+        var selectionTableId = null;
+        var selectionOptions = null;
+        var selectedBasinLevel = null;
+        selection = null;
+        var infoWindow = new google.maps.InfoWindow();
+        var marker = new google.maps.Marker();
+
+        function queryBasinByPoint(point, map) {
+            selectionLat = point.lat();
+            selectionLng = point.lng();
+
+            selectionTableId = tableIdBasins;
+     
+            Session.set('basinLevel', selectedBasinLevel);
+
+            // define callback function, this is called when the results are returned
+            function getData(response) {
+                var basinId = response.getDataTable().getValue(0, 0)
+                var upArea = response.getDataTable().getValue(0, 1)
+                var pfafId = response.getDataTable().getValue(0, 2)
+
+                //var geom = response.getDataTable().getValue(0, 3)
+                //console.log(geom);
+
+                infoWindow.setContent(
+                    '<p><b>Basin Id: </b>' + basinId + '</p>' +
+                    '<p><b>Upstream Area: </b>' + upArea + '</p>' +
+                    '<p><b>Pfafstetter Id: </b>' + pfafId + '</p>' +
+                    '<p><b>Grid scale: </b><input id="inputScale" type="number" min="0.0008" max="1" step="0.0001" value="0.1" onChange="UpdateScaleMeters(this);"> degrees</p>' +
+                    '<p><b>Grid scale: </b>~<span id="inputScaleMeters">11123</span> meters</p>' +
+                    '<p/>' +
+                    '<button name="export" class="export" type="button" onclick="exportModel( ' + basinId + ' )">Export ...</button>' +
+                    '<script>$("#inputScale").numericInput({ allowFloat: true, allowNegative: false });'
+                );
+            }
+
+            selectionOptions = {
+                map : map,
+                suppressInfoWindows: true,
+                query : {
+                  select: 'geometry',
+                  from: tableIdBasins,
+                  where: 'ST_INTERSECTS(geometry, CIRCLE(LATLNG(' + selectionLat + ', ' + selectionLng + '),1))',
+                  limit: 1
+               },
+               styles: [{
+                  polygonOptions: {
+                  fillColor: '#FFFF00',
+                  fillOpacity: 0.5,
+                  strokeColor: '#FFFF60',
+                  strokeWeight: 2
+               }}]
+            };
+
+            if(selection == null) {
+                selection = new google.maps.FusionTablesLayer(selectionOptions);
+                selection.addListener('click', function (e) {
+                  queryBasinByPoint(e.latLng, map);
+                });
+                infoWindow.open(map, marker)
+            } else {
+ 
+               marker.setOptions({
+                  position: point,
+                  map: map
+               });
+
+               marker.addListener('click', function() { 
+                  infoWindow.open(map, marker) 
+               });
+
+               //create a viz query to send to Fusion Tables
+                  //encodeURIComponent("SELECT HYBAS_ID, UP_AREA, PFAF_ID, geometry FROM " 
+
+               var queryStr = 'http://www.google.com/fusiontables/gvizdata?tq=' +
+                 encodeURIComponent('SELECT HYBAS_ID, UP_AREA, PFAF_ID FROM ' + tableIdBasins 
+                    + ' WHERE ' + 'ST_INTERSECTS(geometry, CIRCLE(LATLNG(' 
+                    + selectionLat + ', ' + selectionLng + '),1))');
+
+               console.log(queryStr)
+
+               var query = new google.visualization.Query(queryStr);
+  
+               //set the callback function that will be called when the query returns
+               query.send(getData);
+
+               // show selection
+               selection.setOptions(selectionOptions);
+
+               // bugs in fusion table
+               setTimeout(function(){ 
+                  $("img[src*='googleapis']").each(function(){ 
+                  $(this).attr("src",$(this).attr("src")+"&"+(new Date()).getTime()); 
+                 }); 
+               },3000); 
+           }
+        }
+
+        google.maps.event.addListener(map, 'zoom_changed', onZoomChanged);
+
+        basinsLayer.addListener('click', function (e) {
+            queryBasinByPoint(e.latLng, map);
+        });
+        basinsOutlineLayer.addListener('click', function (e) {
+            queryBasinByPoint(e.latLng, map);
+        });
+        riversLayer.addListener('click', function (e) {
+            queryBasinByPoint(e.latLng, map);
+        });
+
+        // bug in FT, we have to query something after map start otherwise selection is unstable
+        queryBasinByPoint(new google.maps.LatLng(0,0), map)
+    }
+
+    google.maps.event.addDomListener(window, 'load', initialize);
+</script>                              	
+
+</body>

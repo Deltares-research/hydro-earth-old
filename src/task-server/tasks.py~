@@ -1,0 +1,20 @@
+from celery import Celery
+import time
+
+
+BROKER_URL = 'mongodb://localhost:81/meteor'
+app = Celery('tasks', broker=BROKER_URL)
+
+app.config_from_object('celery-config')
+
+@app.exportModel
+def exportModel(basinId, delay):
+    if delay < 0:
+        raise Exception('Sleep cannot be less than 0')
+
+    # For testing reasons add some delay
+    time.sleep(delay)
+      
+    return '<URL to exported data>'
+
+
